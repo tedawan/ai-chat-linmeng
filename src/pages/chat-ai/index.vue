@@ -152,17 +152,32 @@
               </view>
 
               <view class="message-bubble">
-                <MarkdownRendererChat
-                  :content="message.content"
-                  :hide-think-duration="Boolean(message.isHistory)"
-                />
+                <view
+                  class="message-content"
+                  :class="{ selectable: message.role === 'assistant' }"
+                >
+                  <MarkdownRendererChat
+                    :content="message.content"
+                    :hide-think-duration="Boolean(message.isHistory)"
+                  />
+                </view>
                 <!-- <view v-if="message.isStreaming" class="streaming-dot"></view> -->
-                <text
-                  v-if="message.createdAt && !message.isOpening && message.role !== 'user'"
-                  class="message-time"
-                >{{
-                  formatMessageTime(message.createdAt)
-                }}</text>
+                <button
+                  v-if="message.role !== 'user' && !message.isOpening"
+                  class="message-copy-btn"
+                  :disabled="!getMessageCopyContent(message)"
+                  @tap.stop="copyMessage(message)"
+                >
+                  <Copy :size="13" />
+                </button>
+                <view v-if="message.role !== 'user' && !message.isOpening" class="message-meta">
+                  <text
+                    v-if="message.createdAt && !message.isOpening"
+                    class="message-time"
+                  >{{
+                    formatMessageTime(message.createdAt)
+                  }}</text>
+                </view>
               </view>
             </view>
 
@@ -315,6 +330,7 @@ import { computed, defineComponent, nextTick, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
   CircleAlert,
+  Copy,
   Menu,
   PanelLeftClose,
   Pencil,
@@ -371,6 +387,7 @@ export default defineComponent({
   name: 'ChatAiPage',
   components: {
     CircleAlert,
+    Copy,
     MarkdownRendererChat,
     Menu,
     PanelLeftClose,
@@ -779,6 +796,40 @@ export default defineComponent({
       return `${year}-${month}-${day} ${hour}:${minute}`
     }
 
+    const getMessageCopyContent = (message) => {
+      return String(message?.content || '')
+        .replace(/<\/?think>/g, '')
+        .trim()
+    }
+
+    const copyMessage = (message) => {
+      const content = getMessageCopyContent(message)
+      if (!content) {
+        uni.showToast({
+          title: '当前内容为空，暂时无法复制',
+          icon: 'none',
+        })
+        return
+      }
+
+      uni.setClipboardData({
+        data: content,
+        showToast: false,
+        success: () => {
+          uni.showToast({
+            title: '已复制到剪贴板',
+            icon: 'none',
+          })
+        },
+        fail: () => {
+          uni.showToast({
+            title: '复制失败，请稍后重试',
+            icon: 'none',
+          })
+        },
+      })
+    }
+
     const initializePage = async () => {
       if (pageInitialized.value) return
       await loadConversationList(false)
@@ -878,7 +929,9 @@ export default defineComponent({
       conversationLoading,
       conversationPanelOpen,
       conversations,
+      copyMessage,
       formatMessageTime,
+      getMessageCopyContent,
       hasStartedChat,
       inputText,
       isGenerating,
@@ -1437,6 +1490,16 @@ button::after {
   line-height: 1.7;
 }
 
+.message-content {
+  min-width: 0;
+}
+
+.message-content.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 .message-row.user .message-bubble {
   background: #95ec69;
   color: #353535;
@@ -1444,6 +1507,7 @@ button::after {
 }
 
 .message-row:not(.user) .message-bubble {
+  position: relative;
   border-top-left-radius: 6px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
@@ -1459,11 +1523,44 @@ button::after {
   animation: pulse 1s infinite;
 }
 
+.message-meta {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+  min-height: 20px;
+}
+
+.message-copy-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #3b82f6;
+  box-shadow:
+    0 4px 10px rgba(59, 130, 246, 0.14),
+    inset 0 0 0 1px rgba(191, 219, 254, 0.95);
+}
+
+.message-copy-btn:active {
+  transform: scale(0.96);
+}
+
+.message-copy-btn[disabled] {
+  opacity: 0.55;
+}
+
 .message-time {
   display: block;
-  margin-top: 8px;
   color: #9ca3af;
   font-size: 11px;
+  line-height: 1;
 }
 
 .messages-bottom-spacer {
@@ -1878,6 +1975,17 @@ button::after {
 :deep(.message-row:not(.user) .markdown-body p),
 :deep(.message-row:not(.user) .markdown-body li) {
   color: #111827;
+}
+
+:deep(.message-content.selectable .markdown-renderer),
+:deep(.message-content.selectable .markdown-body),
+:deep(.message-content.selectable .markdown-body *),
+:deep(.message-content.selectable .think-block),
+:deep(.message-content.selectable .pending-block),
+:deep(.message-content.selectable .pending-block *),
+:deep(.message-content.selectable .think-block *) {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 @supports (min-height: 100dvh) {
