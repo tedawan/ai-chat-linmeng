@@ -151,26 +151,35 @@
                 <text v-else>我</text>
               </view>
 
-              <view class="message-bubble">
+              <view class="message-main">
                 <view
-                  class="message-content"
-                  :class="{ selectable: message.role === 'assistant' }"
+                  class="message-bubble"
+                  :class="{ 'message-bubble--has-copy-btn': shouldShowMessageCopyButton(message) }"
                 >
-                  <MarkdownRendererChat
-                    :content="message.content"
-                    :hide-think-duration="Boolean(message.isHistory)"
-                  />
+                  <view
+                    class="message-content"
+                    :class="{ selectable: !message.isOpening }"
+                  >
+                    <MarkdownRendererChat
+                      :content="message.content"
+                      :hide-think-duration="Boolean(message.isHistory)"
+                    />
+                  </view>
+                  <!-- <view v-if="message.isStreaming" class="streaming-dot"></view> -->
+                  <button
+                    v-if="!message.isOpening && shouldShowMessageCopyButton(message)"
+                    class="message-copy-btn"
+                    :class="{
+                      'message-copy-btn--user': message.role === 'user',
+                      'message-copy-btn--assistant': message.role !== 'user',
+                    }"
+                    :disabled="!getMessageCopyContent(message)"
+                    @tap.stop="copyMessage(message)"
+                  >
+                    <Copy :size="13" />
+                  </button>
                 </view>
-                <!-- <view v-if="message.isStreaming" class="streaming-dot"></view> -->
-                <button
-                  v-if="message.role !== 'user' && !message.isOpening"
-                  class="message-copy-btn"
-                  :disabled="!getMessageCopyContent(message)"
-                  @tap.stop="copyMessage(message)"
-                >
-                  <Copy :size="13" />
-                </button>
-                <view v-if="message.role !== 'user' && !message.isOpening" class="message-meta">
+                <view v-if="!message.isOpening" class="message-meta">
                   <text
                     v-if="message.createdAt && !message.isOpening"
                     class="message-time"
@@ -802,6 +811,22 @@ export default defineComponent({
         .trim()
     }
 
+    const shouldShowMessageCopyButton = (message) => {
+      const content = getMessageCopyContent(message)
+      if (!content) return false
+      if (/[\r\n]/.test(content)) return true
+      if (/```|`|^\s*[-*]\s|^\s*\d+\.\s/im.test(content)) return true
+
+      const plainText = content
+        .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/[*_~>#]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+      return plainText.length >= 18
+    }
+
     const copyMessage = (message) => {
       const content = getMessageCopyContent(message)
       if (!content) {
@@ -957,6 +982,7 @@ export default defineComponent({
       startNewChat,
       stopGenerating,
       submitRename,
+      shouldShowMessageCopyButton,
       teacherAvatarUrl,
       teacherDescription,
       teacherName,
@@ -1479,15 +1505,32 @@ button::after {
   color: #111827;
 }
 
-.message-bubble {
+.message-main {
   min-width: 0;
   max-width: 82%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.message-row.user .message-main {
+  align-items: flex-end;
+}
+
+.message-bubble {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
   padding: 10px 12px;
   border-radius: 16px;
   background: #ffffff;
   color: #111827;
   font-size: 15px;
   line-height: 1.7;
+}
+
+.message-bubble--has-copy-btn {
+  padding-bottom: 34px;
 }
 
 .message-content {
@@ -1507,7 +1550,6 @@ button::after {
 }
 
 .message-row:not(.user) .message-bubble {
-  position: relative;
   border-top-left-radius: 6px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
@@ -1532,20 +1574,17 @@ button::after {
 
 .message-copy-btn {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  right: 8px;
+  bottom: 8px;
   display: inline-flex;
-  width: 25px;
-  height: 25px;
+  width: 28px;
+  height: 28px;
   align-items: center;
   justify-content: center;
-  flex: 0 0 20px;
+  flex: 0 0 28px;
   border-radius: 999px;
-  background: #eaf3ff;
-  color: #3b82f6;
-  box-shadow:
-    0 4px 10px rgba(59, 130, 246, 0.14),
-    inset 0 0 0 1px rgba(191, 219, 254, 0.95);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .message-copy-btn:active {
@@ -1554,6 +1593,22 @@ button::after {
 
 .message-copy-btn[disabled] {
   opacity: 0.55;
+}
+
+.message-copy-btn--assistant {
+  background: rgba(234, 243, 255, 0.96);
+  color: #2563eb;
+  box-shadow:
+    0 6px 14px rgba(59, 130, 246, 0.18),
+    inset 0 0 0 1px rgba(191, 219, 254, 0.96);
+}
+
+.message-copy-btn--user {
+  background: rgba(34, 197, 94, 0.18);
+  color: #166534;
+  box-shadow:
+    0 6px 14px rgba(22, 101, 52, 0.14),
+    inset 0 0 0 1px rgba(22, 163, 74, 0.22);
 }
 
 .message-time {
@@ -1633,8 +1688,8 @@ button::after {
 
 .composer-input {
   width: 100%;
-  min-height: 36px;
-  max-height: 120px;
+  min-height: 56px;
+  max-height: 33vh;
   padding: 8px 0;
   box-sizing: border-box;
   border: 0;
@@ -1643,6 +1698,13 @@ button::after {
   font-size: 15px;
   font-weight: 500;
   line-height: 20px;
+  overflow-y: auto;
+}
+
+@supports (height: 1dvh) {
+  .composer-input {
+    max-height: 33dvh;
+  }
 }
 
 .composer-placeholder {
