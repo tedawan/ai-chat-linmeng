@@ -209,7 +209,7 @@
                   v-model="inputText"
                   class="composer-input"
                   :disabled="isGenerating"
-                  maxlength="2000"
+                  maxlength="8000"
                   auto-height
                   confirm-type="send"
                   placeholder=""
